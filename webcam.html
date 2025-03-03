@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Webcam Stream</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+            text-align: center;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #2c3e50;
+        }
+        video {
+            width: 100%;
+            max-width: 640px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            background-color: #000;
+        }
+        .controls {
+            margin-top: 20px;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 0 5px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        button:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        .status {
+            margin-top: 10px;
+            font-style: italic;
+            color: #7f8c8d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Live Webcam Stream</h1>
+        <p>Stream your webcam live from your PC.</p>
+        
+        <video id="webcam" autoplay playsinline></video>
+        
+        <div class="controls">
+            <button id="startBtn">Start Camera</button>
+            <button id="stopBtn" disabled>Stop Camera</button>
+        </div>
+        
+        <p class="status" id="status">Camera is currently off</p>
+    </div>
+
+    <script>
+        const webcamElement = document.getElementById('webcam');
+        const startButton = document.getElementById('startBtn');
+        const stopButton = document.getElementById('stopBtn');
+        const statusText = document.getElementById('status');
+        
+        let stream = null;
+        
+        // Start webcam function
+        async function startWebcam() {
+            try {
+                const constraints = {
+                    video: {
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    },
+                    audio: false
+                };
+                
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                webcamElement.srcObject = stream;
+                
+                startButton.disabled = true;
+                stopButton.disabled = false;
+                statusText.textContent = "Camera is streaming live";
+                
+            } catch (error) {
+                console.error('Error accessing webcam:', error);
+                statusText.textContent = `Error: ${error.message}`;
+            }
+        }
+        
+        // Stop webcam function
+        function stopWebcam() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                webcamElement.srcObject = null;
+                
+                startButton.disabled = false;
+                stopButton.disabled = true;
+                statusText.textContent = "Camera is currently off";
+            }
+        }
+        
+        // Event listeners
+        startButton.addEventListener('click', startWebcam);
+        stopButton.addEventListener('click', stopWebcam);
+        
+        // Handle page unload
+        window.addEventListener('beforeunload', stopWebcam);
+    </script>
+</div>
+</body>
+</html>

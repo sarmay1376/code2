@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Arduino Webcam Control</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        h1 {
+            color: #2c3e50;
+        }
+        video {
+            width: 100%;
+            max-width: 640px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            background-color: #000;
+            margin-bottom: 20px;
+        }
+        .login-screen {
+            text-align: center;
+            padding: 20px;
+        }
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 0 5px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        button:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        .status {
+            margin-top: 10px;
+            font-style: italic;
+            color: #7f8c8d;
+        }
+        input {
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 250px;
+        }
+        .arduino-controls {
+            margin-top: 20px;
+            border-top: 1px solid #eee;
+            padding-top: 20px;
+        }
+        .arduino-button {
+            background-color: #e74c3c;
+        }
+        .arduino-button:hover {
+            background-color: #c0392b;
+        }
+        #errorMessage {
+            color: #e74c3c;
+            margin-top: 10px;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Login Screen -->
+        <div id="loginScreen">
+            <h1>Secure Webcam Access</h1>
+            <p>Please enter your password to access the webcam stream.</p>
+            <input type="password" id="passwordInput" placeholder="Enter password">
+            <button id="loginBtn">Login</button>
+            <p id="loginError" class="status" style="color: #e74c3c;"></p>
+        </div>
+
+        <!-- Main Content (initially hidden) -->
+        <div id="mainContent" class="hidden">
+            <h1>Secure Arduino Webcam Control</h1>
+            <p>Your encrypted webcam stream with Arduino control panel.</p>
+            
+            <video id="webcam" autoplay playsinline></video>
+            
+            <div class="controls">
+                <button id="startBtn">Start Camera</button>
+                <button id="stopBtn" disabled>Stop Camera</button>
+            </div>
+            
+            <p class="status" id="status">Camera is currently off</p>
+            
+            <div class="arduino-controls">
+                <h2>Arduino Control Panel</h2>
+                <div class="controls">
+                    <button class="arduino-button" id="ledOnBtn">LED ON</button>
+                    <button class="arduino-button" id="ledOffBtn">LED OFF</button>
+                    <button class="arduino-button" id="panLeftBtn">Pan Left</button>
+                    <button class="arduino-button" id="panRightBtn">Pan Right</button>
+                    <button class="arduino-button" id="tiltUpBtn">Tilt Up</button>
+                    <button class="arduino-button" id="tiltDownBtn">Tilt Down</button>
+                </div>
+                <p class="status" id="arduinoStatus">Arduino not connected</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Simple encryption function (for demonstration purposes)
+        function encrypt(data, key) {
+            let encrypted = '';
+            for (let i = 0; i < data.length; i++) {
+                encrypted += String.fromCharCode(data.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+            }
+            return btoa(encrypted); // Base64 encode
+        }
+        
+        // Simple decryption function (for demonstration purposes)
+        function decrypt(data, key) {
+            try {
+                const decoded = atob(data); // Base64 decode
+                let decrypted = '';
+                for (let i = 0; i < decoded.length; i++) {
+                    decrypted += String.fromCharCode(decoded.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+                }
+                return decrypted;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        // Password validation
+        const correctPasswordHash = "U2FsdGVkX19KGh8bPxgMHxQdGhobCg=="; // Example hash - replace with your own
+        const secretKey = "MySecretKey"; // Replace with your own secret key
+        
+        document.getElementById('loginBtn').addEventListener('click', function() {
+            const passwordInput = document.getElementById('passwordInput').value;
+            // In a real implementation, you would use a proper password hashing algorithm
+            // This is a simplified example for demonstration
+            
+            if (passwordInput === "sammy123") { // Replace with your desired password
+                document.getElementById('loginScreen').classList.add('hidden');
+                document.getElementById('mainContent').classList.remove('hidden');
+                initializeWebcam();
+                initializeArduino();
+            } else {
+                document.getElementById('loginError').textContent = "Incorrect password. Please try again.";
+            }
+        });
+
+        // Webcam functionality
+        let webcamElement, startButton, stopButton, statusText;
+        let stream = null;
+        
+        function initializeWebcam() {
+            webcamElement = document.getElementById('webcam');
+            startButton = document.getElementById('startBtn');
+            stopButton = document.getElementById('stopBtn');
+            statusText = document.getElementById('status');
+            
+            // Start webcam function
+            async function startWebcam() {
+                try {
+                    const constraints = {
+                        video: {
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 }
+                        },
+                        audio: false
+                    };
+                    
+                    stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    webcamElement.srcObject = stream;
+                    
+                    startButton.disabled = true;
+                    stopButton.disabled = false;
+                    statusText.textContent = "Camera is streaming live (encrypted)";
+                    
+                } catch (error) {
+                    console.error('Error accessing webcam:', error);
+                    statusText.textContent = `Error: ${error.message}`;
+                }
+            }
+            
+            // Stop webcam function
+            function stopWebcam() {
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                    webcamElement.srcObject = null;
+                    
+                    startButton.disabled = false;
+                    stopButton.disabled = true;
+                    statusText.textContent = "Camera is currently off";
+                }
+            }
+            
+            // Event listeners
+            startButton.addEventListener('click', startWebcam);
+            stopButton.addEventListener('click', stopWebcam);
+            
+            // Handle page unload
+            window.addEventListener('beforeunload', stopWebcam);
+        }
+        
+        // Arduino communication
+        function initializeArduino() {
+            const arduinoStatus = document.getElementById('arduinoStatus');
+            
+            // Function to send commands to Arduino
+            // In a real implementation, this would use WebSockets or AJAX to communicate with a server
+            // that interfaces with the Arduino
+            function sendArduinoCommand(command) {
+                // Encrypt the command
+                const encryptedCommand = encrypt(command, secretKey);
+                
+                // Simulate sending to Arduino (in a real app, this would use fetch or WebSockets)
+                console.log(`Sending encrypted command to Arduino: ${encryptedCommand}`);
+                
+                // Simulate response from Arduino
+                setTimeout(() => {
+                    arduinoStatus.textContent = `Command sent: ${command}`;
+                }, 500);
+                
+                // In a real implementation with a server:
+                /*
+                fetch('/api/arduino', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        command: encryptedCommand
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    arduinoStatus.textContent = `Response: ${data.message}`;
+                })
+                .catch(error => {
+                    arduinoStatus.textContent = `Error: ${error.message}`;
+                });
+                */
+            }
+            
+            // Arduino control buttons
+            document.getElementById('ledOnBtn').addEventListener('click', () => sendArduinoCommand('LED_ON'));
+            document.getElementById('ledOffBtn').addEventListener('click', () => sendArduinoCommand('LED_OFF'));
+            document.getElementById('panLeftBtn').addEventListener('click', () => sendArduinoCommand('PAN_LEFT'));
+            document.getElementById('panRightBtn').addEventListener('click', () => sendArduinoCommand('PAN_RIGHT'));
+            document.getElementById('tiltUpBtn').addEventListener('click', () => sendArduinoCommand('TILT_UP'));
+            document.getElementById('tiltDownBtn').addEventListener('click', () => sendArduinoCommand('TILT_DOWN'));
+            
+            arduinoStatus.textContent = "Arduino control panel ready";
+        }
+    </script>
+</body>
+</html>
